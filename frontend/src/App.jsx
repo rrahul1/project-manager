@@ -1,11 +1,13 @@
-import { useState } from "react";
 import Signup from "./pages/auth/Signup";
 import "./App.css";
+import Signin from "./pages/auth/Signin";
+import CreateTask from "./pages/popups/create-project/CreateTask";
+import Home from "./components/home/Home";
+import Analytics from "./components/analytics/Analytics";
+import UpdateUser from "./components/update-user/UpdateUser";
 
 function App() {
-   const [count, setCount] = useState(0);
-
-   return <Signup />;
+   return <UpdateUser />;
 }
 
 export default App;

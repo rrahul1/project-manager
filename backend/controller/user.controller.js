@@ -22,15 +22,9 @@ export const signup = async (req, res) => {
 
       await newUser.save();
 
-      const token = jwt.sign(
-         { id: newUser._id, email: newUser.email },
-         JWT_SECRET,
-         {
-            expiresIn: "1h",
-         }
-      );
+      const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET);
 
-      res.status(201).json({ user: newUser, token });
+      res.status(201).json({ message: "User Created", token, user: newUser });
    } catch (error) {
       res.status(500).json({ message: "Error occurred during signup" });
    }
@@ -54,13 +48,9 @@ export const login = async (req, res) => {
          return res.status(400).json({ message: "Invalid credentials" });
       }
 
-      const token = jwt.sign(
-         { id: existingUser._id, email: existingUser.email },
-         JWT_SECRET,
-         {
-            expiresIn: "1h",
-         }
-      );
+      const token = jwt.sign({ id: existingUser._id }, process.env.JWT_SECRET, {
+         expiresIn: "1h",
+      });
 
       res.status(200).json({ user: existingUser, token });
    } catch (error) {
@@ -81,18 +71,16 @@ export const getAllUserEmails = async (req, res) => {
    }
 };
 
-import User from "../models/User.js";
-import bcrypt from "bcryptjs";
-
 // Function to update user information (name, email, or password one at a time)
 export const updateUser = async (req, res) => {
    const { userId } = req.params;
-   const { name, email, password, oldPassword } = req.body;
+   const { name, email, newPassword, oldPassword } = req.body;
 
    try {
       const updateFields = Object.keys(req.body).filter(
          (field) => field !== "oldPassword"
       );
+
       if (updateFields.length !== 1) {
          return res
             .status(400)
@@ -109,13 +97,11 @@ export const updateUser = async (req, res) => {
             return res.status(400).json({ message: "Invalid email format" });
          }
          updateData.email = email;
-      } else if (password) {
+      } else if (newPassword) {
          if (!oldPassword) {
-            return res
-               .status(400)
-               .json({
-                  message: "Old password is required to update password",
-               });
+            return res.status(400).json({
+               message: "Old password is required to update password",
+            });
          }
 
          const user = await User.findById(userId);
@@ -130,15 +116,13 @@ export const updateUser = async (req, res) => {
                .json({ message: "Old password is incorrect" });
          }
 
-         if (password.length < 6) {
-            return res
-               .status(400)
-               .json({
-                  message: "Password must be at least 6 characters long",
-               });
+         if (newPassword.length < 6) {
+            return res.status(400).json({
+               message: "Password must be at least 6 characters long",
+            });
          }
 
-         updateData.password = await bcrypt.hash(password, 12);
+         updateData.password = await bcrypt.hash(newPassword, 12);
       } else {
          return res
             .status(400)
@@ -148,7 +132,6 @@ export const updateUser = async (req, res) => {
       const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
          new: true,
       });
-
       if (!updatedUser) {
          return res.status(404).json({ message: "User not found" });
       }
@@ -160,7 +143,21 @@ export const updateUser = async (req, res) => {
    } catch (error) {
       res.status(500).json({
          message: "Error updating user information",
-         error,
+         error: error.message,
       });
+   }
+};
+
+// Function to get user
+export const getUser = async (req, res) => {
+   try {
+      const user = await User.findById(req.user.id).select("-password");
+      if (!user) {
+         return res.status(404).json({ message: "User not found" });
+      }
+
+      res.status(200).json({ user });
+   } catch (error) {
+      res.status(500).json({ message: "Error fetching user", error });
    }
 };

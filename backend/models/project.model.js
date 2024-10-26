@@ -9,6 +9,7 @@ const projectSchema = new Schema({
    },
    title: {
       type: String,
+      required: true,
       unique: true,
    },
    checkList: {
@@ -16,10 +17,12 @@ const projectSchema = new Schema({
       required: true,
    },
    priority: {
+      type: String,
       required: true,
-      enum: ["High Priority", "Moderate Priority", "Low Priority"],
+      enum: ["High", "Moderate", "Low"],
    },
    status: {
+      type: String,
       enum: ["TODO", "PROGRESS", "BACKLOG", "DONE"],
       default: "TODO",
    },

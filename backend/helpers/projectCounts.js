@@ -39,7 +39,7 @@ export const getProjectCounts = async (userId) => {
 
       const counts = await Project.aggregate([
          {
-            $match: { createdBy: mongoose.Types.ObjectId(userId) },
+            $match: { createdBy: new mongoose.Types.ObjectId(userId) },
          },
          {
             $facet: {
@@ -75,56 +75,59 @@ export const getProjectCounts = async (userId) => {
                ],
                dueDateCounts: [
                   {
-                     $facet: {
-                        overdue: [
-                           {
-                              $match: {
-                                 dueDate: { $lt: startOfToday },
-                              },
+                     $group: {
+                        _id: null,
+                        overdue: {
+                           $sum: {
+                              $cond: [
+                                 { $lt: ["$dueDate", startOfToday] },
+                                 1,
+                                 0,
+                              ],
                            },
-                           {
-                              $count: "count",
-                           },
-                        ],
-                        dueToday: [
-                           {
-                              $match: {
-                                 dueDate: {
-                                    $gte: startOfToday,
-                                    $lt: endOfToday,
+                        },
+                        dueToday: {
+                           $sum: {
+                              $cond: [
+                                 {
+                                    $and: [
+                                       { $gte: ["$dueDate", startOfToday] },
+                                       { $lt: ["$dueDate", endOfToday] },
+                                    ],
                                  },
-                              },
+                                 1,
+                                 0,
+                              ],
                            },
-                           {
-                              $count: "count",
-                           },
-                        ],
-                        dueThisWeek: [
-                           {
-                              $match: {
-                                 dueDate: {
-                                    $gte: startOfToday,
-                                    $lt: endOfWeek,
+                        },
+                        dueThisWeek: {
+                           $sum: {
+                              $cond: [
+                                 {
+                                    $and: [
+                                       { $gte: ["$dueDate", startOfToday] },
+                                       { $lt: ["$dueDate", endOfWeek] },
+                                    ],
                                  },
-                              },
+                                 1,
+                                 0,
+                              ],
                            },
-                           {
-                              $count: "count",
-                           },
-                        ],
-                        dueThisMonth: [
-                           {
-                              $match: {
-                                 dueDate: {
-                                    $gte: startOfToday,
-                                    $lt: endOfMonth,
+                        },
+                        dueThisMonth: {
+                           $sum: {
+                              $cond: [
+                                 {
+                                    $and: [
+                                       { $gte: ["$dueDate", startOfToday] },
+                                       { $lt: ["$dueDate", endOfMonth] },
+                                    ],
                                  },
-                              },
+                                 1,
+                                 0,
+                              ],
                            },
-                           {
-                              $count: "count",
-                           },
-                        ],
+                        },
                      },
                   },
                ],
@@ -133,19 +136,19 @@ export const getProjectCounts = async (userId) => {
       ]);
 
       const formattedCounts = {
-         priorityCounts: counts[0].priorityCounts,
-         statusCounts: counts[0].statusCounts,
+         priorityCounts: counts[0]?.priorityCounts || [],
+         statusCounts: counts[0]?.statusCounts || [],
          dueDateCounts: {
-            overdue: counts[0].dueDateCounts[0].overdue[0]?.count || 0,
-            dueToday: counts[0].dueDateCounts[0].dueToday[0]?.count || 0,
-            dueThisWeek: counts[0].dueDateCounts[0].dueThisWeek[0]?.count || 0,
-            dueThisMonth:
-               counts[0].dueDateCounts[0].dueThisMonth[0]?.count || 0,
+            overdue: counts[0]?.dueDateCounts[0]?.overdue || 0,
+            dueToday: counts[0]?.dueDateCounts[0]?.dueToday || 0,
+            dueThisWeek: counts[0]?.dueDateCounts[0]?.dueThisWeek || 0,
+            dueThisMonth: counts[0]?.dueDateCounts[0]?.dueThisMonth || 0,
          },
       };
 
       return formattedCounts;
    } catch (error) {
+      console.error("Error fetching project counts:", error.message);
       throw new Error("Error fetching project counts: " + error.message);
    }
 };

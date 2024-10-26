@@ -1,5 +1,8 @@
 import express from "express";
 import mongoose from "mongoose";
+import cors from "cors";
+import userRoutes from "./routes/user.routes.js";
+import projectRoutes from "./routes/project.routes.js";
 
 import dotenv from "dotenv";
 
@@ -8,7 +11,13 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// Routes
+app.use(
+   cors({
+      origin: "http://localhost:5173",
+      methods: ["GET", "POST", "DELETE", "PUT", "PATCH"],
+      credentials: true,
+   })
+);
 
 mongoose
    .connect(process.env.MONGO, {
@@ -23,3 +32,6 @@ const PORT = 5000;
 app.listen(PORT, () => {
    console.log(`Server running on port ${PORT}`);
 });
+
+app.use("/api/auth", userRoutes);
+app.use("/api/project", projectRoutes);

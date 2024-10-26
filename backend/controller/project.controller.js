@@ -1,25 +1,25 @@
-import mongoose from "mongoose";
-import moment from "moment";
 import Project from "../models/project.model.js";
+import mongoose from "mongoose";
 
 // POST route to create a new project (only for authenticated users)
-export const createProject = async (re, res) => {
+
+export const createProject = async (req, res) => {
+   const { title, checklist, priority, assignTo, dueDate } = req.body;
    try {
-      const { title, checkList, priority, assignTo, dueDate } = req.body;
+      if (!req.user) {
+         return res.status(401).json({ message: "User not authenticated" });
+      }
 
-      const createdBy = req.user._id;
-
-      if (!title || !checkList || !priority) {
+      if (!title || !checklist || !priority) {
          return res
             .status(400)
             .json({ message: "Required fields are missing" });
       }
 
-      // Create a new project document
       const newProject = new Project({
-         createdBy: mongoose.Types.ObjectId(createdBy),
+         createdBy: req.user.id,
          title,
-         checkList,
+         checkList: checklist,
          priority,
          assignTo,
          dueDate: dueDate ? new Date(dueDate) : undefined,
@@ -32,13 +32,20 @@ export const createProject = async (re, res) => {
          project: savedProject,
       });
    } catch (error) {
-      return res.status(500).json({ message: "Server error", error });
+      console.error("Error creating project:", error);
+      return res
+         .status(500)
+         .json({ message: "Server error", error: error.message });
    }
 };
 
+// filter projects
+
 export const filterProjects = async (req, res) => {
    try {
-      const { filter, status } = req.query;
+      const user = req.user;
+      const { filter } = req.params;
+      console.log(filter);
 
       const today = new Date();
       const startOfWeek = new Date(
@@ -50,38 +57,33 @@ export const filterProjects = async (req, res) => {
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
       const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
-      let filterCondition = {};
+      let filterCondition = {
+         createdBy: user.id,
+      };
 
       switch (filter) {
          case "today":
-            filterCondition = {
-               dueDate: {
-                  $gte: new Date(new Date().setHours(0, 0, 0, 0)),
-                  $lt: new Date(new Date().setHours(23, 59, 59, 999)),
-               },
+            filterCondition.dueDate = {
+               $gte: new Date(new Date().setHours(0, 0, 0, 0)),
+               $lt: new Date(new Date().setHours(23, 59, 59, 999)),
             };
             break;
 
          case "thisWeek":
-            filterCondition = {
-               dueDate: {
-                  $gte: startOfWeek,
-                  $lt: endOfWeek,
-               },
+            filterCondition.dueDate = {
+               $gte: startOfWeek,
+               $lt: endOfWeek,
             };
             break;
 
          case "thisMonth":
-            filterCondition = {
-               dueDate: {
-                  $gte: startOfMonth,
-                  $lt: endOfMonth,
-               },
+            filterCondition.dueDate = {
+               $gte: startOfMonth,
+               $lt: endOfMonth,
             };
             break;
 
          case "all":
-            filterCondition = {};
             break;
 
          default:
@@ -91,12 +93,7 @@ export const filterProjects = async (req, res) => {
             });
       }
 
-      if (status) {
-         filterCondition.status = status;
-      }
-
       const filteredProjects = await Project.find(filterCondition);
-
       res.status(200).json(filteredProjects);
    } catch (error) {
       res.status(500).json({ message: "Server error", error });
@@ -208,68 +205,133 @@ export const updateProjectStatus = async (req, res) => {
    }
 };
 
-//  GET route to fetch TODO projects
-export const getTodoProjects = async (req, res) => {
-   const userId = req.user.id;
-   try {
-      const projects = await Project.find({
-         createdBy: userId,
-         status: "TODO",
-      });
-      res.status(200).json({ projects });
-   } catch (error) {
-      res.status(500).json({ message: error.message });
-   }
-};
-
-//  GET route to fetch PROGRESS projects
-export const getProgressProjects = async (req, res) => {
-   const userId = req.user.id;
-   try {
-      const projects = await Project.find({
-         createdBy: userId,
-         status: "PROGRESS",
-      });
-      res.status(200).json({ projects });
-   } catch (error) {
-      res.status(500).json({ message: error.message });
-   }
-};
-
-//  GET route to fetch BACKLOG projects
-export const getBacklogProjects = async (req, res) => {
-   const userId = req.user.id;
-   try {
-      const projects = await Project.find({
-         createdBy: userId,
-         status: "BACKLOG",
-      });
-      res.status(200).json({ projects });
-   } catch (error) {
-      res.status(500).json({ message: error.message });
-   }
-};
-
-//  GET route to fetch DONE projects
-export const getDoneProjects = async (req, res) => {
-   const userId = req.user.id;
-   try {
-      const projects = await Project.find({
-         createdBy: userId,
-         status: "DONE",
-      });
-      res.status(200).json({ projects });
-   } catch (error) {
-      res.status(500).json({ message: error.message });
-   }
-};
-
 // GET route to fetch project counts
-export const getProjectCount = async (req, res) => {
+export const getProjectCounts = async (req, res) => {
+   const today = new Date();
+   const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+   const endOfToday = new Date(today.setHours(23, 59, 59, 999));
+
+   const startOfWeek = new Date(startOfToday);
+   startOfWeek.setDate(today.getDate() - today.getDay());
+
+   const endOfWeek = new Date(startOfWeek);
+   endOfWeek.setDate(endOfWeek.getDate() + 6);
+
+   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
    try {
-      const counts = await getProjectCounts(req.user._id);
-      res.status(200).json(counts);
+      const counts = await Project.aggregate([
+         {
+            $match: { createdBy: new mongoose.Types.ObjectId(req.user.id) },
+         },
+         {
+            $facet: {
+               priorityCounts: [
+                  {
+                     $group: {
+                        _id: "$priority",
+                        count: { $sum: 1 },
+                     },
+                  },
+                  {
+                     $project: {
+                        _id: 0,
+                        priority: "$_id",
+                        count: 1,
+                     },
+                  },
+               ],
+               statusCounts: [
+                  {
+                     $group: {
+                        _id: "$status",
+                        count: { $sum: 1 },
+                     },
+                  },
+                  {
+                     $project: {
+                        _id: 0,
+                        status: "$_id",
+                        count: 1,
+                     },
+                  },
+               ],
+               dueDateCounts: [
+                  {
+                     $group: {
+                        _id: null,
+                        overdue: {
+                           $sum: {
+                              $cond: [
+                                 { $lt: ["$dueDate", startOfToday] },
+                                 1,
+                                 0,
+                              ],
+                           },
+                        },
+                        dueToday: {
+                           $sum: {
+                              $cond: [
+                                 {
+                                    $and: [
+                                       { $gte: ["$dueDate", startOfToday] },
+                                       { $lt: ["$dueDate", endOfToday] },
+                                    ],
+                                 },
+                                 1,
+                                 0,
+                              ],
+                           },
+                        },
+                        dueThisWeek: {
+                           $sum: {
+                              $cond: [
+                                 {
+                                    $and: [
+                                       { $gte: ["$dueDate", startOfToday] },
+                                       { $lt: ["$dueDate", endOfWeek] },
+                                    ],
+                                 },
+                                 1,
+                                 0,
+                              ],
+                           },
+                        },
+                        dueThisMonth: {
+                           $sum: {
+                              $cond: [
+                                 {
+                                    $and: [
+                                       { $gte: ["$dueDate", startOfToday] },
+                                       { $lt: ["$dueDate", endOfMonth] },
+                                    ],
+                                 },
+                                 1,
+                                 0,
+                              ],
+                           },
+                        },
+                     },
+                  },
+               ],
+            },
+         },
+      ]);
+
+      const formattedCounts = {
+         priorityCounts: counts[0]?.priorityCounts || [],
+         statusCounts: counts[0]?.statusCounts || [],
+         dueDateCounts: {
+            overdue: counts[0]?.dueDateCounts[0]?.overdue || 0,
+            dueToday: counts[0]?.dueDateCounts[0]?.dueToday || 0,
+            dueThisWeek: counts[0]?.dueDateCounts[0]?.dueThisWeek || 0,
+            dueThisMonth: counts[0]?.dueDateCounts[0]?.dueThisMonth || 0,
+         },
+      };
+      res.json(formattedCounts);
    } catch (error) {
-      res.status(500).json({ message: error.message });
+      console.error("Error fetching project counts:", error.message);
+      res.json(error);
    }
 };

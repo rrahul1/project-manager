@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import authImg from "../../assets/images/authimg.png";
 import lockIcon from "../../assets/icons/lock.svg";
 import userIcon from "../../assets/icons/user.svg";
 import viewIcon from "../../assets/icons/viewpassword.svg";
 import emailIcon from "../../assets/icons/email.svg";
+import { registerUser } from "../../services/Api";
 import styles from "./Auth.module.css";
 
 const Signup = () => {
@@ -17,6 +18,7 @@ const Signup = () => {
    const [showPassword, setShowPassword] = useState(false);
    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
    const [loading, setLoading] = useState(false);
+   const [apiError, setApiError] = useState("");
 
    const [errors, setErrors] = useState({
       name: "",
@@ -24,6 +26,10 @@ const Signup = () => {
       password: "",
       confirmPassword: "",
    });
+
+   useEffect(() => {
+      setApiError("");
+   }, [formData.email]);
 
    const validateForm = () => {
       let valid = true;
@@ -96,12 +102,26 @@ const Signup = () => {
       setErrors(newErrors);
    };
 
-   const handleSubmit = (e) => {
+   const handleSubmit = async (e) => {
       e.preventDefault();
       setLoading(true);
+      setApiError("");
 
       if (validateForm()) {
-         console.log("Form Submitted: ", formData);
+         try {
+            const res = await registerUser(formData);
+            localStorage.setItem("token", res.data.token);
+         } catch (error) {
+            if (error.response && error.response.status === 400) {
+               setApiError("User already exists");
+            } else {
+               setApiError("An error occurred. Please try again.");
+            }
+         } finally {
+            setLoading(false);
+         }
+      } else {
+         setLoading(false);
       }
    };
 
@@ -118,6 +138,7 @@ const Signup = () => {
          </div>
          <div className={styles.authFormContainer}>
             <h1>Register</h1>
+            {apiError && <p className={styles.error}>{apiError}</p>}
             <form className={styles.authForm} onSubmit={handleSubmit}>
                <label htmlFor="name">
                   <img src={userIcon} alt="user-icon" />
