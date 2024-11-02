@@ -12,10 +12,12 @@ const projectSchema = new Schema({
       required: true,
       unique: true,
    },
-   checkList: {
-      type: Array,
-      required: true,
-   },
+   checkList: [
+      {
+         description: { type: String, required: true },
+         done: { type: Boolean, default: false },
+      },
+   ],
    priority: {
       type: String,
       required: true,
@@ -27,14 +29,10 @@ const projectSchema = new Schema({
       default: "TODO",
    },
    assignTo: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
    },
-   assignedProjects: [
-      {
-         type: Schema.Types.ObjectId,
-         ref: "Project",
-      },
-   ],
    dueDate: {
       type: Date,
    },

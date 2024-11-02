@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { toast, ToastContainer } from "react-toastify";
 import authImg from "../../assets/images/authimg.png";
 import lockIcon from "../../assets/icons/lock.svg";
 import userIcon from "../../assets/icons/user.svg";
 import viewIcon from "../../assets/icons/viewpassword.svg";
 import emailIcon from "../../assets/icons/email.svg";
 import { registerUser } from "../../services/Api";
+import "react-toastify/dist/ReactToastify.css";
 import styles from "./Auth.module.css";
 
 const Signup = () => {
@@ -14,6 +17,8 @@ const Signup = () => {
       password: "",
       confirmPassword: "",
    });
+
+   const navigate = useNavigate();
 
    const [showPassword, setShowPassword] = useState(false);
    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -111,6 +116,19 @@ const Signup = () => {
          try {
             const res = await registerUser(formData);
             localStorage.setItem("token", res.data.token);
+            toast.success("Signup Successful! Please Wait", {
+               position: "top-right",
+               autoClose: 100,
+               hideProgressBar: false,
+               closeOnClick: true,
+               pauseOnHover: true,
+               draggable: true,
+               progress: undefined,
+               theme: "light",
+               onClose: () => {
+                  navigate("/home");
+               },
+            });
          } catch (error) {
             if (error.response && error.response.status === 400) {
                setApiError("User already exists");
@@ -222,9 +240,12 @@ const Signup = () => {
             </form>
             <div className={styles.authForm}>
                <p>Have an account?</p>
-               <button className={styles.authBtn2}>Log In</button>
+               <Link to="/signin" className={styles.authBtn2}>
+                  Log In
+               </Link>
             </div>
          </div>
+         {<ToastContainer />}
       </div>
    );
 };

@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useDispatch } from "react-redux";
-import { fetchUser } from "../../../services/Api";
-import { createProject } from "../../../slices/ProjectSlice";
+import { fetchUser, fetchProjectById } from "../../../services/Api";
+import { editProject } from "../../../slices/ProjectSlice";
 import { fetchProjects } from "../../../slices/ProjectSlice";
-import styles from "./CreateTask.module.css";
+import styles from "../create-project/CreateTask.module.css";
 
-function CreateTask({ onClose }) {
+function EditTask({ projectId, onClose }) {
    const dispatch = useDispatch();
 
    const [formData, setFormData] = useState({
@@ -22,8 +22,29 @@ function CreateTask({ onClose }) {
    const [users, setUsers] = useState([]);
    const [isSubmitting, setIsSubmitting] = useState(false);
    const [loadingUsers, setLoadingUsers] = useState(true);
+   const [id, setId] = useState("");
 
    useEffect(() => {
+      const loadProjectData = async () => {
+         try {
+            const project = await fetchProjectById(projectId);
+            const dueDate = project?.data.dueDate
+               ? new Date(project.data.dueDate).toISOString().split("T")[0]
+               : "";
+            setFormData({
+               title: project?.data.title || "",
+               priority: project?.data.priority || "",
+               checklist: project?.data.checkList || [],
+               assignTo: project?.data.assignTo?.email || "",
+               dueDate: dueDate,
+            });
+
+            setId(project?.data._id);
+         } catch (error) {
+            console.error("Error fetching project:", error);
+         }
+      };
+
       const loadUsers = async () => {
          try {
             setLoadingUsers(true);
@@ -36,8 +57,9 @@ function CreateTask({ onClose }) {
          }
       };
 
+      loadProjectData();
       loadUsers();
-   }, []);
+   }, [projectId]);
 
    const handleInputChange = useCallback(
       (e) => {
@@ -81,10 +103,7 @@ function CreateTask({ onClose }) {
    };
 
    const handleSelectEmail = (email) => {
-      setFormData((prevFormData) => ({
-         ...prevFormData,
-         assignTo: email,
-      }));
+      setFormData({ ...formData, assignTo: email });
       setShowDropdown(false);
    };
 
@@ -96,11 +115,11 @@ function CreateTask({ onClose }) {
    const handleSubmit = async (e) => {
       e.preventDefault();
       let newErrors = {};
+
       if (!formData.title) newErrors.title = "Title is required";
       if (!formData.priority) newErrors.priority = "Priority is required";
       if (formData.checklist.length === 0)
          newErrors.checklist = "At least one checklist item is required";
-      if (!formData.dueDate) newErrors.dueDate = "Due date is required";
 
       setErrors(newErrors);
 
@@ -108,12 +127,11 @@ function CreateTask({ onClose }) {
          setIsSubmitting(true);
          const token = localStorage.getItem("token");
          try {
-            dispatch(createProject({ formData, token })).then(() => {
-               dispatch(fetchProjects({ filter: "All", token }));
-               onClose();
-            });
+            dispatch(editProject({ projectId: id, updatedData: formData }));
+            dispatch(fetchProjects({ filter: "All", token }));
+            onClose();
          } catch (error) {
-            console.error("Error submitting form:", error);
+            console.error("Error updating project:", error);
          } finally {
             setIsSubmitting(false);
          }
@@ -181,6 +199,7 @@ function CreateTask({ onClose }) {
                         className={`${styles.dropdwnInput} ${
                            errors.assignTo ? styles.errorInput : ""
                         }`}
+                        readOnly
                      />
                      {showDropdown && (
                         <ul className={styles.dropdownList}>
@@ -190,7 +209,9 @@ function CreateTask({ onClose }) {
                               users.map((user, index) => (
                                  <li
                                     key={index}
-                                    onClick={() => handleSelectEmail(user)}
+                                    onClick={() =>
+                                       handleSelectEmail(user.email)
+                                    }
                                     className={styles.dropdownItem}
                                  >
                                     {user}
@@ -273,7 +294,7 @@ function CreateTask({ onClose }) {
                      className={styles.saveBtn}
                      disabled={isSubmitting}
                   >
-                     {isSubmitting ? "Saving..." : "Save"}
+                     {isSubmitting ? "Saving..." : "Save Changes"}
                   </button>
                </div>
             </form>
@@ -282,4 +303,4 @@ function CreateTask({ onClose }) {
    );
 }
 
-export default CreateTask;
+export default EditTask;

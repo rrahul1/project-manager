@@ -48,9 +48,7 @@ export const login = async (req, res) => {
          return res.status(400).json({ message: "Invalid credentials" });
       }
 
-      const token = jwt.sign({ id: existingUser._id }, process.env.JWT_SECRET, {
-         expiresIn: "1h",
-      });
+      const token = jwt.sign({ id: existingUser._id }, process.env.JWT_SECRET);
 
       res.status(200).json({ user: existingUser, token });
    } catch (error) {
@@ -73,77 +71,50 @@ export const getAllUserEmails = async (req, res) => {
 
 // Function to update user information (name, email, or password one at a time)
 export const updateUser = async (req, res) => {
-   const { userId } = req.params;
-   const { name, email, newPassword, oldPassword } = req.body;
+   const { oldPassword, ...updateData } = req.body;
+
+   const userId = req.user.id;
+
+   if (Object.keys(updateData).length !== 1) {
+      return res
+         .status(400)
+         .json({ error: "You can only update one field at a time." });
+   }
 
    try {
-      const updateFields = Object.keys(req.body).filter(
-         (field) => field !== "oldPassword"
-      );
-
-      if (updateFields.length !== 1) {
-         return res
-            .status(400)
-            .json({ message: "You can only update one field at a time" });
+      const user = await User.findById(userId);
+      if (!user) {
+         return res.status(404).json({ error: "User not found." });
       }
 
-      let updateData = {};
+      const fieldToUpdate = Object.keys(updateData)[0];
 
-      if (name) {
-         updateData.name = name;
-      } else if (email) {
-         const emailRegex = /\S+@\S+\.\S+/;
-         if (!emailRegex.test(email)) {
-            return res.status(400).json({ message: "Invalid email format" });
-         }
-         updateData.email = email;
-      } else if (newPassword) {
+      if (fieldToUpdate === "password") {
          if (!oldPassword) {
             return res.status(400).json({
-               message: "Old password is required to update password",
+               error: "Old password is required to update the password.",
             });
-         }
-
-         const user = await User.findById(userId);
-         if (!user) {
-            return res.status(404).json({ message: "User not found" });
          }
 
          const isMatch = await bcrypt.compare(oldPassword, user.password);
          if (!isMatch) {
             return res
                .status(400)
-               .json({ message: "Old password is incorrect" });
+               .json({ error: "Old password is incorrect." });
          }
 
-         if (newPassword.length < 6) {
-            return res.status(400).json({
-               message: "Password must be at least 6 characters long",
-            });
-         }
-
-         updateData.password = await bcrypt.hash(newPassword, 12);
-      } else {
-         return res
-            .status(400)
-            .json({ message: "No valid field provided to update" });
+         updateData.password = await bcrypt.hash(updateData.password, 12);
       }
 
-      const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
-         new: true,
-      });
-      if (!updatedUser) {
-         return res.status(404).json({ message: "User not found" });
-      }
+      user[fieldToUpdate] = updateData[fieldToUpdate];
+      await user.save();
 
       res.status(200).json({
-         message: "User updated successfully",
-         user: updatedUser,
+         message: `${fieldToUpdate} updated successfully.`,
       });
    } catch (error) {
       res.status(500).json({
-         message: "Error updating user information",
-         error: error.message,
+         error: "An error occurred while updating the user.",
       });
    }
 };

@@ -1,10 +1,10 @@
-import Project from "../models/project.model.js";
 import mongoose from "mongoose";
-
-// POST route to create a new project (only for authenticated users)
+import Project from "../models/project.model.js";
+import User from "../models/user.model.js";
 
 export const createProject = async (req, res) => {
    const { title, checklist, priority, assignTo, dueDate } = req.body;
+
    try {
       if (!req.user) {
          return res.status(401).json({ message: "User not authenticated" });
@@ -16,16 +16,35 @@ export const createProject = async (req, res) => {
             .json({ message: "Required fields are missing" });
       }
 
+      if (assignTo && assignTo === req.user.email) {
+         return res.status(400).json({
+            message: "Cannot assign project to yourself",
+         });
+      }
+
+      let assignedUser = null;
+      if (assignTo) {
+         assignedUser = await User.findOne({ email: assignTo });
+         if (!assignedUser) {
+            return res.status(404).json({ message: "Assigned user not found" });
+         }
+      }
+
       const newProject = new Project({
          createdBy: req.user.id,
          title,
          checkList: checklist,
          priority,
-         assignTo,
+         assignTo: assignedUser ? assignedUser._id : null,
          dueDate: dueDate ? new Date(dueDate) : undefined,
       });
-
       const savedProject = await newProject.save();
+
+      if (assignedUser) {
+         await User.findByIdAndUpdate(assignedUser._id, {
+            $addToSet: { projects: savedProject._id },
+         });
+      }
 
       return res.status(201).json({
          message: "Project created successfully",
@@ -33,9 +52,10 @@ export const createProject = async (req, res) => {
       });
    } catch (error) {
       console.error("Error creating project:", error);
-      return res
-         .status(500)
-         .json({ message: "Server error", error: error.message });
+      return res.status(500).json({
+         message: "Server error",
+         error: error.message,
+      });
    }
 };
 
@@ -43,9 +63,8 @@ export const createProject = async (req, res) => {
 
 export const filterProjects = async (req, res) => {
    try {
-      const user = req.user;
       const { filter } = req.params;
-      console.log(filter);
+      const userId = req.user.id;
 
       const today = new Date();
       const startOfWeek = new Date(
@@ -58,32 +77,32 @@ export const filterProjects = async (req, res) => {
       const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
       let filterCondition = {
-         createdBy: user.id,
+         $or: [{ createdBy: userId }, { assignTo: userId }],
       };
 
       switch (filter) {
-         case "today":
+         case "Today":
             filterCondition.dueDate = {
                $gte: new Date(new Date().setHours(0, 0, 0, 0)),
                $lt: new Date(new Date().setHours(23, 59, 59, 999)),
             };
             break;
 
-         case "thisWeek":
+         case "This Week":
             filterCondition.dueDate = {
                $gte: startOfWeek,
                $lt: endOfWeek,
             };
             break;
 
-         case "thisMonth":
+         case "This Month":
             filterCondition.dueDate = {
                $gte: startOfMonth,
                $lt: endOfMonth,
             };
             break;
 
-         case "all":
+         case "All":
             break;
 
          default:
@@ -93,18 +112,23 @@ export const filterProjects = async (req, res) => {
             });
       }
 
-      const filteredProjects = await Project.find(filterCondition);
+      const filteredProjects = await Project.find(filterCondition)
+         .populate("createdBy", "name email")
+         .populate("assignTo", "name email");
+
       res.status(200).json(filteredProjects);
    } catch (error) {
+      console.error("Error filtering projects:", error);
       res.status(500).json({ message: "Server error", error });
    }
 };
 
 // PUT route to edit an existing project
+
 export const editProject = async (req, res) => {
    try {
       const { projectId } = req.params;
-      const { title, checkList, priority, assignTo, dueDate } = req.body;
+      const { title, checklist, priority, assignTo, dueDate } = req.body;
 
       const project = await Project.findById(projectId);
 
@@ -112,23 +136,22 @@ export const editProject = async (req, res) => {
          return res.status(404).json({ message: "Project not found" });
       }
 
-      if (project.createdBy.toString() !== req.user._id) {
-         return res
-            .status(403)
-            .json({ message: "You are not authorized to edit this project" });
-      }
-
       if (title) {
          project.title = title;
       }
-      if (checkList) {
-         project.checkList = checkList;
+      if (checklist) {
+         project.checkList = checklist;
       }
       if (priority) {
          project.priority = priority;
       }
       if (assignTo) {
-         project.assignTo = assignTo;
+         const user = await User.findOne({ email: assignTo });
+         if (user) {
+            project.assignTo = user._id;
+         } else {
+            return res.status(404).json({ message: "User not found" });
+         }
       }
       if (dueDate) {
          project.dueDate = new Date(dueDate);
@@ -141,6 +164,7 @@ export const editProject = async (req, res) => {
          project: updatedProject,
       });
    } catch (error) {
+      console.error("Error updating project:", error);
       return res.status(500).json({ message: "Server error", error });
    }
 };
@@ -154,12 +178,6 @@ export const deleteProject = async (req, res) => {
 
       if (!project) {
          return res.status(404).json({ message: "Project not found" });
-      }
-
-      if (project.createdBy.toString() !== req.user._id) {
-         return res
-            .status(403)
-            .json({ message: "You are not authorized to delete this project" });
       }
 
       await Project.findByIdAndDelete(projectId);
@@ -186,12 +204,6 @@ export const updateProjectStatus = async (req, res) => {
          return res.status(404).json({ message: "Project not found" });
       }
 
-      if (project.createdBy.toString() !== req.user._id) {
-         return res
-            .status(403)
-            .json({ message: "You are not authorized to update this project" });
-      }
-
       project.status = status;
 
       const updatedProject = await project.save();
@@ -201,6 +213,7 @@ export const updateProjectStatus = async (req, res) => {
          project: updatedProject,
       });
    } catch (error) {
+      console.error("Error updating project status:", error);
       return res.status(500).json({ message: "Server error", error });
    }
 };
@@ -333,5 +346,53 @@ export const getProjectCounts = async (req, res) => {
    } catch (error) {
       console.error("Error fetching project counts:", error.message);
       res.json(error);
+   }
+};
+
+// Function to update checklist as done
+
+export const markChecklistAsDone = async (req, res) => {
+   const { projectId, taskIndex, isDone } = req.body;
+
+   try {
+      const project = await Project.findById(projectId);
+
+      if (project && project.checkList[taskIndex] !== undefined) {
+         project.checkList[taskIndex].done = isDone;
+         await project.save();
+         res.status(200).json({ message: "Task status updated successfully." });
+      } else {
+         res.status(404).json({ message: "Project or task not found." });
+      }
+   } catch (error) {
+      console.error("Error updating task status:", error);
+      res.status(500).json({
+         message: "An error occurred while updating task status.",
+      });
+   }
+};
+
+// Function to Get project based on its id
+export const getProject = async (req, res) => {
+   try {
+      const id = req.params.id;
+
+      const project = await Project.findById(id)
+         .populate("createdBy", "name email")
+         .populate("assignTo", "name email")
+         .lean();
+
+      if (!project) {
+         return res.status(404).json({ message: "Project not found" });
+      }
+
+      if (Array.isArray(project)) {
+         return res.status(400).json({ message: "Unexpected duplicate data" });
+      }
+
+      res.json(project);
+   } catch (error) {
+      console.error("Error fetching project:", error);
+      res.status(500).json({ message: "Server error" });
    }
 };

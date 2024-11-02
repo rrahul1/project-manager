@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
+import { useState } from "react";
+import { useDispatch } from "react-redux";
+import { toast, ToastContainer } from "react-toastify";
 import { updateUser } from "../../services/Api";
+import { fetchUser } from "../../slices/UserSlice";
 import lockIcon from "../../assets/icons/lock.svg";
 import userIcon from "../../assets/icons/user.svg";
 import viewIcon from "../../assets/icons/viewpassword.svg";
 import emailIcon from "../../assets/icons/email.svg";
+import "react-toastify/dist/ReactToastify.css";
 import styles from "./Updateuser.module.css";
 
 const UpdateUser = () => {
@@ -15,26 +18,12 @@ const UpdateUser = () => {
       oldPassword: "",
    });
 
-   const token = localStorage.getItem("token");
+   const dispatch = useDispatch();
 
+   const token = localStorage.getItem("token");
    const [showPassword, setShowPassword] = useState(false);
    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
    const [loading, setLoading] = useState(false);
-   const [user, setUser] = useState(null);
-
-   useEffect(() => {
-      axios
-         .get("http://localhost:5000/api/auth/get-user", {
-            headers: { Authorization: `Bearer ${token}` },
-         })
-         .then((response) => setUser(response.data))
-         .catch((error) => console.error("Error fetching user data:", error));
-   }, [token]);
-
-   const userId = user?.user?._id;
-
-   console.log(userId);
-
    const [errors, setErrors] = useState({
       name: "",
       email: "",
@@ -55,18 +44,21 @@ const UpdateUser = () => {
          (key) => formData[key].trim() !== ""
       );
       if (filledFields.length > 1) {
-         Object.keys(newErrors).forEach(
-            (key) =>
-               (newErrors[key] = "Only one field can be updated at a time.")
-         );
+         newErrors[filledFields[1]] =
+            "Only one field can be updated at a time.";
          valid = false;
       } else {
-         if (formData.email.trim() && !/\S+@\S+\.\S+/.test(formData.email)) {
+         if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
             newErrors.email = "Invalid email format";
             valid = false;
          }
          if (formData.newPassword && formData.newPassword.length < 6) {
             newErrors.newPassword = "Password must be at least 6 characters";
+            valid = false;
+         }
+         if (formData.newPassword && !formData.oldPassword) {
+            newErrors.oldPassword =
+               "Old password is required to set a new password";
             valid = false;
          }
       }
@@ -80,25 +72,11 @@ const UpdateUser = () => {
       setFormData({ ...formData, [name]: value });
 
       const newErrors = { ...errors };
-
-      if (name === "name" && value.trim() !== "") {
-         newErrors.name = "";
-      }
-
-      if (name === "email") {
-         const emailRegex = /\S+@\S+\.\S+/;
-         if (emailRegex.test(value)) {
-            newErrors.email = "";
-         }
-      }
-
-      if (name === "password" && value.length >= 6) {
-         newErrors.password = "";
-      }
-
-      if (name === "confirmPassword" && value === formData.password) {
-         newErrors.confirmPassword = "";
-      }
+      if (name === "name" && value.trim()) newErrors.name = "";
+      if (name === "email" && /\S+@\S+\.\S+/.test(value)) newErrors.email = "";
+      if (name === "newPassword" && value.length >= 6)
+         newErrors.newPassword = "";
+      if (name === "oldPassword") newErrors.oldPassword = "";
 
       setErrors(newErrors);
    };
@@ -109,7 +87,24 @@ const UpdateUser = () => {
 
       if (validateForm()) {
          try {
-            await updateUser({ formData, userId });
+            const filledField = Object.keys(formData).find(
+               (key) => formData[key].trim() !== ""
+            );
+
+            const singleFieldData = { [filledField]: formData[filledField] };
+
+            await updateUser(singleFieldData, token);
+            dispatch(fetchUser(token));
+            toast.success(" User Updated", {
+               position: "top-right",
+               autoClose: 1500,
+               hideProgressBar: false,
+               closeOnClick: true,
+               pauseOnHover: true,
+               draggable: true,
+               progress: undefined,
+               theme: "light",
+            });
          } catch (error) {
             console.log(error);
          } finally {
@@ -149,14 +144,14 @@ const UpdateUser = () => {
             </label>
             {errors.email && <p className={styles.error}>{errors.email}</p>}
 
-            <label htmlFor="confirm-password">
+            <label htmlFor="oldPassword">
                <img src={lockIcon} alt="lock" />
                <input
                   type={showConfirmPassword ? "text" : "password"}
                   placeholder="Old Password"
                   name="oldPassword"
-                  id="confirm-password"
-                  value={formData.confirmPassword}
+                  id="oldPassword"
+                  value={formData.oldPassword}
                   onChange={handleInputChange}
                />
                <img
@@ -165,18 +160,18 @@ const UpdateUser = () => {
                   alt="view"
                />
             </label>
-            {errors.confirmPassword && (
-               <p className={styles.error}>{errors.confirmPassword}</p>
+            {errors.oldPassword && (
+               <p className={styles.error}>{errors.oldPassword}</p>
             )}
 
-            <label htmlFor="password">
+            <label htmlFor="newPassword">
                <img src={lockIcon} alt="lock" />
                <input
                   type={showPassword ? "text" : "password"}
                   placeholder="New Password"
                   name="newPassword"
-                  id="password"
-                  value={formData.password}
+                  id="newPassword"
+                  value={formData.newPassword}
                   onChange={handleInputChange}
                />
                <img
@@ -185,14 +180,15 @@ const UpdateUser = () => {
                   alt="view"
                />
             </label>
-            {errors.password && (
-               <p className={styles.error}>{errors.password}</p>
+            {errors.newPassword && (
+               <p className={styles.error}>{errors.newPassword}</p>
             )}
 
             <button className={styles.authBtn} type="submit" disabled={loading}>
                {loading ? "Updating..." : "Update"}
             </button>
          </form>
+         {<ToastContainer />}
       </div>
    );
 };

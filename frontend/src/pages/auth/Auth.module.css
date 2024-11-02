@@ -43,7 +43,13 @@
    gap: 1em;
 }
 
+.authForm > a {
+   text-decoration: none;
+   text-align: center;
+}
+
 .authBtn {
+   text-decoration: none;
    width: 80%;
    background: #17a2b8;
    color: white;

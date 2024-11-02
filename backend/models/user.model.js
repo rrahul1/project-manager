@@ -20,6 +20,7 @@ const userSchema = new Schema({
       required: [true, "Password is required"],
       minlength: [6, "Password must be at least 6 characters long"],
    },
+   projects: [{ type: Schema.Types.ObjectId, ref: "Project" }],
    createdAt: {
       type: Date,
       default: Date.now,

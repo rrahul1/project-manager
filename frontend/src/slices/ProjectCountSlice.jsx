@@ -45,7 +45,6 @@ const projectCountSlice = createSlice({
             state.status = "loading";
          })
          .addCase(fetchProjectCount.fulfilled, (state, action) => {
-            console.log("redux", action.payload);
             state.status = "succeeded";
             state.counts = action.payload;
          })

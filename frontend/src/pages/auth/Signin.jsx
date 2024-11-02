@@ -1,37 +1,35 @@
 import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { toast, ToastContainer } from "react-toastify";
+import { loginUser } from "../../services/Api";
 import authImg from "../../assets/images/authimg.png";
 import lockIcon from "../../assets/icons/lock.svg";
-import userIcon from "../../assets/icons/user.svg";
 import viewIcon from "../../assets/icons/viewpassword.svg";
 import emailIcon from "../../assets/icons/email.svg";
+import "react-toastify/dist/ReactToastify.css";
 import styles from "./Auth.module.css";
 
 const Signin = () => {
    const [formData, setFormData] = useState({
-      name: "",
       email: "",
       password: "",
-      confirmPassword: "",
    });
 
+   const navigate = useNavigate();
+
    const [showPassword, setShowPassword] = useState(false);
-   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
    const [loading, setLoading] = useState(false);
 
    const [errors, setErrors] = useState({
-      name: "",
       email: "",
       password: "",
-      confirmPassword: "",
    });
 
    const validateForm = () => {
       let valid = true;
       const newErrors = {
-         name: "",
          email: "",
          password: "",
-         confirmPassword: "",
       };
 
       const emailRegex = /\S+@\S+\.\S+/;
@@ -79,12 +77,44 @@ const Signin = () => {
       setErrors(newErrors);
    };
 
-   const handleSubmit = (e) => {
+   const handleSubmit = async (e) => {
       e.preventDefault();
       setLoading(true);
 
       if (validateForm()) {
-         console.log("Form Submitted: ", formData);
+         try {
+            const response = await loginUser(formData);
+            localStorage.setItem("token", response.data.token);
+            toast.success("Login Successful! Please Wait", {
+               position: "top-right",
+               autoClose: 100,
+               hideProgressBar: false,
+               closeOnClick: true,
+               pauseOnHover: true,
+               draggable: true,
+               progress: undefined,
+               theme: "light",
+               onClose: () => {
+                  navigate("/home");
+               },
+            });
+         } catch (error) {
+            console.error("Login error:", error);
+            toast.error("Incorrect email or password", {
+               position: "top-right",
+               autoClose: 1500,
+               hideProgressBar: false,
+               closeOnClick: true,
+               pauseOnHover: true,
+               draggable: true,
+               progress: undefined,
+               theme: "light",
+            });
+         } finally {
+            setLoading(false);
+         }
+      } else {
+         setLoading(false);
       }
    };
 
@@ -147,9 +177,12 @@ const Signin = () => {
             </form>
             <div className={styles.authForm}>
                <p>Don not an account?</p>
-               <button className={styles.authBtn2}>Register</button>
+               <Link to="/signup" className={styles.authBtn2}>
+                  Register
+               </Link>
             </div>
          </div>
+         {<ToastContainer />}
       </div>
    );
 };

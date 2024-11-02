@@ -1,13 +1,22 @@
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import Signup from "./pages/auth/Signup";
-import "./App.css";
 import Signin from "./pages/auth/Signin";
-import CreateTask from "./pages/popups/create-project/CreateTask";
 import Home from "./components/home/Home";
-import Analytics from "./components/analytics/Analytics";
-import UpdateUser from "./components/update-user/UpdateUser";
+import Share from "./components/share/Share";
+import "./App.css";
 
 function App() {
-   return <UpdateUser />;
+   return (
+      <BrowserRouter>
+         <Routes>
+            <Route path="/home" element={<Home />} />
+            <Route path="/" element={<Navigate to="/home" replace />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/signin" element={<Signin />} />
+            <Route path="/share/:projectId" element={<Share />} />
+         </Routes>
+      </BrowserRouter>
+   );
 }
 
 export default App;
