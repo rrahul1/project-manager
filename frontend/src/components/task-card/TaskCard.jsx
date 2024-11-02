@@ -127,7 +127,7 @@ const TaskCard = ({ project, isAllCollapsed, resetAllCollapsed }) => {
    };
 
    const handleCopy = (projectId) => {
-      const taskLink = `http://localhost:5173/share/${projectId}`;
+      const taskLink = `https://project-manager-ten-gamma.vercel.app/share/${projectId}`;
       navigator.clipboard.writeText(taskLink);
 
       copyToast().catch((error) => {
